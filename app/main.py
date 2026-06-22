@@ -1,5 +1,6 @@
 from datetime import datetime
-from fastapi import FastAPI, Depends, HTTPException, Header, UploadFile, File
+from fastapi import FastAPI, Depends, HTTPException
+from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 import json
 import os
@@ -20,8 +21,10 @@ API_KEY = os.getenv("API_KEY", "dev-secret-key")
 DEFAULT_ORG = os.getenv("DEFAULT_ORG_ID", "org_default")
 
 
-def check_auth(x_api_key: str = Header(None)):
-    if x_api_key != API_KEY:
+api_key_header = APIKeyHeader(name="X-API-Key")
+
+def check_auth(api_key: str = Depends(api_key_header)):
+    if api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
     return True
 

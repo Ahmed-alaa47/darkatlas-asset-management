@@ -16,8 +16,12 @@ class GuardrailError(Exception):
 def validate_nl_query_filter(flt: NLQueryFilter) -> NLQueryFilter:
     """NL query filters are inherently safe — LLM only returns filters,
     not assets. We just sanitize."""
-    # strip any suspicious tag values
-    flt.tags = [t.lower().strip() for t in flt.tags if isinstance(t, str)]
+    # strip any suspicious tag values, ignore non-strings and empty strings
+    flt.tags = [
+        t.lower().strip() 
+        for t in flt.tags 
+        if isinstance(t, str) and t.strip()
+    ]
     return flt
 
 
@@ -25,7 +29,7 @@ def validate_risk_assessment(assessment: RiskAssessment,
                              db: Session, org_id: str) -> RiskAssessment:
     """Drop any finding that references an asset_id not in the DB."""
     valid_ids = set()
-    for finding in assessment.findings:
+    for finding in assessment.findings or []:
         asset = db.query(Asset).filter(
             Asset.id == finding.asset_id,
             Asset.organization_id == org_id,
@@ -34,11 +38,11 @@ def validate_risk_assessment(assessment: RiskAssessment,
             valid_ids.add(finding.asset_id)
 
     assessment.findings = [
-        f for f in assessment.findings if f.asset_id in valid_ids
+        f for f in (assessment.findings or []) if f.asset_id in valid_ids
     ]
+            
     assessment.risk_score = max(0, min(100, assessment.risk_score))
     return assessment
-
 
 def validate_enrichment(result: EnrichmentResult,
                         asset: Asset) -> EnrichmentResult:

@@ -84,7 +84,7 @@ class RiskFinding(BaseModel):
 
 class RiskAssessment(BaseModel):
     risk_score: int = Field(..., ge=0, le=100)
-    risk_level: str  
+    risk_level: str
     summary: str
     findings: list[RiskFinding]
     recommendations: list[str]
@@ -94,8 +94,8 @@ class EnrichmentResult(BaseModel):
     environment: str  
     category: str
     criticality: str  
-    confidence: float = Field(..., ge=0.0, le=1.0)
-    enriched_metadata: dict[str, Any]
+    confidence: Optional[float] = Field(default=0.5, ge=0.0, le=1.0)
+    enriched_metadata: Optional[dict[str, Any]] = Field(default_factory=dict)
     reasoning: str
 
 
@@ -107,7 +107,7 @@ class ReportSection(BaseModel):
 class AnalysisReport(BaseModel):
     title: str
     executive_summary: str
-    sections: list[ReportSection]
+    sections: Optional[list[ReportSection]]= Field(default_factory=list)
     total_assets: int
     generated_at: str
 

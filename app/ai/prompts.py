@@ -16,10 +16,14 @@ CRITICAL RULES:
   explain in the explanation field.
 - Tag names should be lowercased.
 
+MAPPING EXAMPLES (User Query -> asset_type):
+- "show me all certificates" -> asset_type: "certificate"
+- "find ip addresses" -> asset_type: "ip_address"
+- "list all subdomains" -> asset_type: "subdomain"
+- "exposed services" -> asset_type: "service"
+
 Available asset types: domain, subdomain, ip_address, service, certificate, technology
 Available statuses: active, stale, archived
-
-{format_instructions}
 """
 
 nl_query_prompt = ChatPromptTemplate.from_messages([
@@ -29,19 +33,29 @@ nl_query_prompt = ChatPromptTemplate.from_messages([
 
 
 #2. Risk scoring & summarization
-RISK_SYSTEM = """You are a security risk analyst for an Attack Surface Monitoring
-platform. Analyze the provided assets and produce a risk assessment.
+RISK_SYSTEM = """You are a security risk analyst for an Attack Surface Monitoring platform. 
+Analyze the provided assets and produce a comprehensive risk assessment.
 
 You will receive a JSON list of real assets from the database. You MUST:
 - Only reference asset_id values that appear in the provided data.
 - NEVER invent asset IDs or values.
-- Consider: expired/expiring TLS certificates, sensitive exposed services
-  (SSH/RDP/Telnet/FTP), end-of-life technologies, exposed databases,
-  stale assets that may be forgotten.
-- risk_score: 0-100 (higher = more risk).
-- risk_level: low (0-24), medium (25-49), high (50-74), critical (75-100).
 
-{format_instructions}
+You MUST output a valid JSON object matching this exact structure:
+{{
+  "risk_score": <integer 0-100>,
+  "risk_level": <string: "low", "medium", "high", or "critical">,
+  "summary": <string: 1-2 sentence summary of the overall risk>,
+  "findings": [
+    {{
+      "asset_id": <string>,
+      "severity": <string: "low", "medium", "high", or "critical">,
+      "description": <string>
+    }}
+  ],
+  "recommendations": [<string>, <string>]
+}}
+
+Do not omit any fields. If there are no findings, return an empty list [].
 """
 
 risk_prompt = ChatPromptTemplate.from_messages([
@@ -51,23 +65,23 @@ risk_prompt = ChatPromptTemplate.from_messages([
 
 
 #3. Automated enrichment & categorization
-ENRICH_SYSTEM = """You are an asset enrichment agent for an Attack Surface
-Monitoring platform. Given a raw asset, classify it and suggest enriched metadata.
+ENRICH_SYSTEM = """You are an asset enrichment agent for an Attack Surface Monitoring platform. 
+Given a raw asset, classify it and suggest enriched metadata.
 
-Classification rules:
-- environment: prod / staging / dev / unknown
-  * Heuristics: value contains "api.", "www.", "prod" -> prod
-    "staging", "stage" -> staging; "dev", "test" -> dev
-- category: e.g. web_service, api_endpoint, mail_server, dns, cdn,
-  database, certificate, infrastructure, unknown
-- criticality: low / medium / high
-  * Exposed databases, auth services, production = high
-  * Dev/test = low; everything else = medium
+You MUST return ALL of the following fields in your JSON response:
+1. environment: One of "prod", "staging", "dev", or "unknown".
+2. category: e.g. web_service, api_endpoint, mail_server, dns, cdn, database, certificate, infrastructure, unknown.
+3. criticality: One of "low", "medium", "high".
+4. confidence: A float between 0.0 and 1.0.
+5. enriched_metadata: A dictionary of suggested metadata additions.
+6. reasoning: A string explaining your classification.
+
+Classification heuristics:
+- environment: value contains "api.", "www.", "prod" -> prod; "staging", "stage" -> staging; "dev", "test" -> dev.
+- criticality: Exposed databases, auth services, production = high. Dev/test = low. Everything else = medium.
 
 You MUST NOT change the asset's canonical value. Only suggest metadata additions.
-If uncertain, set confidence lower.
-
-{format_instructions}
+NEVER omit any of the required fields.
 """
 
 enrich_prompt = ChatPromptTemplate.from_messages([
@@ -91,7 +105,6 @@ Rules:
 - Structure the report with clear sections.
 - Be concise and actionable.
 
-{format_instructions}
 """
 
 report_prompt = ChatPromptTemplate.from_messages([
