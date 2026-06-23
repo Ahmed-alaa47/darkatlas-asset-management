@@ -117,8 +117,8 @@ class AnalysisReport(BaseModel):
 class AnalyzeRequest(BaseModel):
     mode: str = Field(..., description="nl_query | risk | enrich | report")
     query: Optional[str] = None        
-    asset_id: Optional[str] = None     # for risk / enrich on single asset
-    asset_ids: Optional[list[str]] = None  # for risk on a group
+    asset_id: Optional[str] = None     
+    asset_ids: Optional[list[str]] = None  
     organization_id: Optional[str] = None
 
 

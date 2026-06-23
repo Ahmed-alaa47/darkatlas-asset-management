@@ -23,7 +23,7 @@ _report_cache = {}
 
 def run_nl_query(query: str, db: Session, org_id: str) -> dict:
     llm = get_llm(temperature=0.0)
-    structured_llm = llm.with_structured_output(NLQueryFilter)
+    structured_llm = llm.with_structured_output(NLQueryFilter, method="function_calling")
     chain = nl_query_prompt | structured_llm
 
     today = datetime.utcnow().strftime("%Y-%m-%d")
@@ -113,7 +113,7 @@ def run_enrichment(asset_id: str, db: Session, org_id: str, persist: bool = True
     }, default=str)
 
     llm = get_llm(temperature=0.1)
-    structured_llm = llm.with_structured_output(EnrichmentResult)
+    structured_llm = llm.with_structured_output(EnrichmentResult, method="function_calling")
     chain = enrich_prompt | structured_llm
 
     try:
