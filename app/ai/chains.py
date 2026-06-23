@@ -17,6 +17,7 @@ from app.schemas import (
 from app.crud import filter_assets, get_asset
 from app.models import Asset
 
+_report_cache = {}
 
 # Chain 1: Natural-language asset query
 
@@ -179,6 +180,16 @@ def _compute_stats(assets: list[Asset]) -> dict:
     }
 
 def run_report(db: Session, org_id: str, asset_type: str = None) -> dict:
+    # 1. Check if we have a cached report for this organization
+    cache_key = f"{org_id}_{asset_type}"
+    if cache_key in _report_cache:
+        return {
+            "report": _report_cache[cache_key]["report"],
+            "stats": _report_cache[cache_key]["stats"],
+            "cached": True 
+        }
+
+    # 2. If not in cache, fetch from DB
     q = db.query(Asset).filter(Asset.organization_id == org_id)
     if asset_type: q = q.filter(Asset.type == asset_type)
     assets = q.all()
@@ -212,7 +223,6 @@ def run_report(db: Session, org_id: str, asset_type: str = None) -> dict:
             "stats_json": json.dumps(stats, indent=2),
             "assets_json": json.dumps(notable, default=str, indent=2)
         })
-        # LangChain might return a dict depending on the provider
         if isinstance(report, dict):
             report = AnalysisReport(**report)
     except Exception as e:
@@ -222,4 +232,14 @@ def run_report(db: Session, org_id: str, asset_type: str = None) -> dict:
     report.total_assets = stats["total_assets"]
     report.generated_at = datetime.utcnow().isoformat()
 
-    return {"report": report.model_dump(), "stats": stats}
+    # 3. Save the successful result to cache before returning
+    _report_cache[cache_key] = {
+        "report": report.model_dump(),
+        "stats": stats
+    }
+
+    return {
+        "report": report.model_dump(),
+        "stats": stats,
+        "cached": False
+    }

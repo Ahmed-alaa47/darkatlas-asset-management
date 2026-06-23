@@ -120,3 +120,38 @@ class AnalyzeRequest(BaseModel):
     asset_id: Optional[str] = None     # for risk / enrich on single asset
     asset_ids: Optional[list[str]] = None  # for risk on a group
     organization_id: Optional[str] = None
+
+
+# Typed request schemas for individual endpoints
+
+class ImportRequest(BaseModel):
+    organization_id: Optional[str] = Field(
+        None, description="Organization ID; defaults to server-configured value")
+    assets: list[dict[str, Any]] = Field(
+        ..., description="List of asset records to import")
+
+
+class QueryRequest(BaseModel):
+    organization_id: Optional[str] = None
+    query: str = Field(..., description="Natural language query string")
+
+
+class RiskRequest(BaseModel):
+    organization_id: Optional[str] = None
+    asset_id: Optional[str] = Field(None, description="Single asset ID")
+    asset_ids: Optional[list[str]] = Field(None, description="Multiple asset IDs")
+
+
+class EnrichRequest(BaseModel):
+    organization_id: Optional[str] = None
+
+
+class ReportRequest(BaseModel):
+    organization_id: Optional[str] = None
+    asset_type: Optional[str] = Field(
+        None, description="Optional asset type filter (e.g. 'server', 'certificate')")
+
+
+class AgentRequest(BaseModel):
+    organization_id: Optional[str] = None
+    prompt: str = Field(..., description="Free-form prompt for the AI agent")

@@ -1,13 +1,10 @@
-# from langchain_core.output_parsers import PydanticOutputParser
-# from app.schemas import (
-#     NLQueryFilter, RiskAssessment, EnrichmentResult, AnalysisReport,
-# )
+"""
+Output parsing strategy
+-----------------------
+This project uses LangChain's ``llm.with_structured_output(PydanticModel)``
+(see chains.py) instead of legacy PydanticOutputParser objects.
 
-# nl_query_parser = PydanticOutputParser(pydantic_object=NLQueryFilter)
-# risk_parser = PydanticOutputParser(pydantic_object=RiskAssessment)
-# enrichment_parser = PydanticOutputParser(pydantic_object=EnrichmentResult)
-# report_parser = PydanticOutputParser(pydantic_object=AnalysisReport)
-# --------------------------------------------------
-
-# Output parsers are no longer needed.
-# We use llm.with_structured_output() in chains.py for native Pydantic v2 support.
+Structured output leverages native function-calling / JSON mode on the LLM
+provider side, producing validated Pydantic v2 instances directly — no manual
+format-instruction injection or retry parsing needed.
+"""

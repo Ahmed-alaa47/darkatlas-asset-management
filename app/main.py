@@ -2,7 +2,6 @@ from datetime import datetime
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
-import json
 import os
 
 from app.database import engine, Base, get_db
@@ -10,6 +9,8 @@ from app import schemas, importer
 from app.ai.chains import (
     run_nl_query, run_risk_analysis, run_enrichment, run_report,
 )
+from app.ai.agent import run_agent
+
 
 app = FastAPI(
     title="DarkAtlas Asset Management — AI Track",
@@ -39,18 +40,19 @@ def health():
     return {"status": "ok", "time": datetime.utcnow().isoformat()}
 
 
-#import
+# ── Import ──────────────────────────────────────────────────────────
+
 @app.post("/import", response_model=schemas.ImportResult,
           dependencies=[Depends(check_auth)])
-def import_assets(payload: dict, db: Session = Depends(get_db)):
-    org_id = payload.get("organization_id", DEFAULT_ORG)
-    records = payload.get("assets", [])
-    if not isinstance(records, list):
+def import_assets(payload: schemas.ImportRequest, db: Session = Depends(get_db)):
+    org_id = payload.organization_id or DEFAULT_ORG
+    if not isinstance(payload.assets, list):
         raise HTTPException(400, "'assets' must be a list")
-    return importer.bulk_import(db, records, org_id)
+    return importer.bulk_import(db, payload.assets, org_id)
 
 
-#analyze endpoint with mode
+# ── Unified /analyze endpoint ───────────────────────────────────────
+
 @app.post("/analyze", dependencies=[Depends(check_auth)])
 def analyze(req: schemas.AnalyzeRequest, db: Session = Depends(get_db)):
     org_id = req.organization_id or DEFAULT_ORG
@@ -78,29 +80,41 @@ def analyze(req: schemas.AnalyzeRequest, db: Session = Depends(get_db)):
         raise HTTPException(400, f"Unknown mode: {req.mode}")
 
 
-#one endpoint per capability
+# ── Individual capability endpoints ────────────────────────────────
 
 @app.post("/query", dependencies=[Depends(check_auth)])
-def natural_language_query(body: dict, db: Session = Depends(get_db)):
-    org_id = body.get("organization_id", DEFAULT_ORG)
-    return run_nl_query(body["query"], db, org_id)
+def natural_language_query(body: schemas.QueryRequest, db: Session = Depends(get_db)):
+    org_id = body.organization_id or DEFAULT_ORG
+    return run_nl_query(body.query, db, org_id)
 
 
 @app.post("/risk", dependencies=[Depends(check_auth)])
-def risk_analysis(body: dict, db: Session = Depends(get_db)):
-    org_id = body.get("organization_id", DEFAULT_ORG)
-    ids = body.get("asset_ids") or [body["asset_id"]]
+def risk_analysis(body: schemas.RiskRequest, db: Session = Depends(get_db)):
+    org_id = body.organization_id or DEFAULT_ORG
+    ids = body.asset_ids or ([body.asset_id] if body.asset_id else [])
+    if not ids:
+        raise HTTPException(400, "asset_id or asset_ids required")
     return run_risk_analysis(ids, db, org_id)
 
 
 @app.post("/enrich/{asset_id}", dependencies=[Depends(check_auth)])
-def enrich_asset(asset_id: str, body: dict = None, db: Session = Depends(get_db)):
-    org_id = (body or {}).get("organization_id", DEFAULT_ORG)
+def enrich_asset(asset_id: str, body: schemas.EnrichRequest = None,
+                 db: Session = Depends(get_db)):
+    org_id = (body.organization_id if body else None) or DEFAULT_ORG
     return run_enrichment(asset_id, db, org_id)
 
 
 @app.post("/report", dependencies=[Depends(check_auth)])
-def generate_report(body: dict = None, db: Session = Depends(get_db)):
-    org_id = (body or {}).get("organization_id", DEFAULT_ORG)
-    asset_type = (body or {}).get("asset_type")
+def generate_report(body: schemas.ReportRequest = None,
+                    db: Session = Depends(get_db)):
+    org_id = (body.organization_id if body else None) or DEFAULT_ORG
+    asset_type = body.asset_type if body else None
     return run_report(db, org_id, asset_type)
+
+
+# ── Bonus: Agentic endpoint ────────────────────────────────────────
+
+@app.post("/agent", dependencies=[Depends(check_auth)])
+def agent_endpoint(body: schemas.AgentRequest, db: Session = Depends(get_db)):
+    org_id = body.organization_id or DEFAULT_ORG
+    return run_agent(body.prompt, db, org_id)
